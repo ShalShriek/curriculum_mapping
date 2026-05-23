@@ -1298,12 +1298,14 @@ else if (_adminParam === '0') localStorage.removeItem('cm_admin');
 const IS_ADMIN = localStorage.getItem('cm_admin') === '1';
 if (!IS_ADMIN) {
   document.querySelector('button[data-tab="data"]')?.classList.add('hidden');
+  document.querySelector('button[data-tab="ai"]')?.classList.add('hidden');
   document.querySelector('[data-scope="leveling"]')?.classList.add('hidden');
 }
 
 $$('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 function switchTab(tab) {
   if (tab === 'data' && !IS_ADMIN) tab = 'home';   // safety net if state is stale
+  if (tab === 'ai'   && !IS_ADMIN) tab = 'home';
   state.tab = tab;
   $$('.tab-btn').forEach(b => b.classList.toggle('tab-active', b.dataset.tab === tab));
   $$('.screen').forEach(s => s.classList.add('hidden'));
