@@ -86,9 +86,10 @@
   input[type="checkbox"] { accent-color: var(--brand-primary); width: 16px; height: 16px; }
   .btn-link:hover { color: var(--brand-primary-dark); }
   .matrix-th { position: relative; }
-  .matrix-th .tip { display: none; position: absolute; z-index: 50; top: calc(100% + 4px); left: 50%; transform: translateX(-50%); background: var(--brand-text); color: white; padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4; white-space: normal; width: 280px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); pointer-events: none; }
+  .matrix-th .tip { display: none; position: absolute; z-index: 50; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #ffffff; color: #242424; border: 1.5px solid var(--brand-primary); padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4; white-space: normal; width: 280px; box-shadow: 0 4px 12px rgba(146,0,59,0.15); pointer-events: none; }
   .matrix-th:hover .tip { display: block; }
-  .matrix-th .tip::before { content: ""; position: absolute; top: -5px; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-bottom-color: var(--brand-text); }
+  .matrix-th .tip::before { content: ""; position: absolute; top: -6px; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-bottom-color: var(--brand-primary); }
+  .matrix-th .tip::after { content: ""; position: absolute; top: -3px; left: 50%; transform: translateX(-50%); border: 4px solid transparent; border-bottom-color: #ffffff; }
   .x-cell { cursor: pointer; }
   .x-cell:hover { background: var(--brand-accent-pale) !important; }
   .matrix-detail { background: var(--brand-accent-pale); border-left: 4px solid var(--brand-accent); }
@@ -395,6 +396,9 @@
   #screen-editor .fl-eh-name { font-size: 22px; font-weight: 600; line-height: 1.25; margin: 0; color: var(--fl-fg-1); letter-spacing: -0.005em; }
   #screen-editor #editor-course-name > span { font-size: 16px; font-weight: 500; }
   #screen-editor .fl-eh-instr { font-size: 14px; color: var(--fl-fg-3); margin: 4px 0 0; max-width: 680px; }
+  #screen-editor .fl-eh-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: #c0c0c0; flex-shrink: 0; }
+  #screen-editor .fl-eh-last-updated { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 400; color: var(--fl-fg-3); letter-spacing: 0; }
+  #screen-editor .fl-eh-last-updated svg { width: 12px; height: 12px; flex-shrink: 0; opacity: .7; }
   #screen-editor .fl-eh-right { display: flex; align-items: center; gap: 8px; }
   /* Dropdowns inside the editor */
   #screen-editor select.fl-dropdown { display: inline-flex; align-items: center; height: 32px; padding: 0 28px 0 12px; min-width: 240px; background: var(--fl-bg-1); border: 1px solid var(--fl-stroke); border-radius: 6px; font: inherit; font-size: 14px; color: var(--fl-fg-1); cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23616161' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
@@ -600,7 +604,11 @@
         <div class="fl-eh-strip"></div>
         <div class="fl-eh-body">
           <div class="fl-eh-left">
-            <div class="fl-eh-meta" id="editor-meta">—</div>
+            <div class="fl-eh-meta" id="editor-meta">
+              <span id="editor-meta-sem"></span>
+              <span class="fl-eh-meta-dot" id="editor-meta-dot" style="display:none"></span>
+              <span class="fl-eh-last-updated" id="editor-last-updated" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span id="editor-last-updated-text"></span></span>
+            </div>
             <h2 class="fl-eh-name" id="editor-course-name">—</h2>
             <p class="fl-eh-instr">For each outcome, select concepts, enter topics, evaluation methods and select sub-competencies.</p>
           </div>
@@ -1278,7 +1286,9 @@ function renderEditor() {
   if (picker) picker.value = state.selectedCourse || '';
 
   if (!state.selectedCourse) {
-    $('#editor-meta').textContent = '';
+    $('#editor-meta-sem').textContent = '';
+    $('#editor-meta-dot').style.display = 'none';
+    $('#editor-last-updated').style.display = 'none';
     $('#editor-course-name').innerHTML = 'Pick a course to start editing';
     $('#outcomes-list').innerHTML = '<div class="fl-empty">Pick a course from the dropdown above.</div>';
     $('#subs-list').innerHTML = '<div class="fl-empty">Choose a course first.</div>';
@@ -1287,7 +1297,19 @@ function renderEditor() {
   }
   const c = DATA.courses.find(x => x.CourseName === state.selectedCourse);
   $('#editor-course-name').innerHTML = courseTitle(c);
-  $('#editor-meta').textContent = c.Semester ? SEM_LABEL[c.Semester] : '';
+  $('#editor-meta-sem').textContent = c.Semester ? SEM_LABEL[c.Semester] : '';
+  // Show timestamp loading state, then fetch
+  const _luEl   = $('#editor-last-updated');
+  const _luText = $('#editor-last-updated-text');
+  const _dotEl  = $('#editor-meta-dot');
+  _dotEl.style.display = '';
+  _luEl.style.display  = 'inline-flex';
+  _luText.textContent  = 'Loading…';
+  const _snapCourse = state.selectedCourse;
+  fetchCourseLastUpdated(_snapCourse).then(ts => {
+    if (state.selectedCourse !== _snapCourse) return; // navigated away
+    _luText.textContent = ts ? 'Last edited ' + formatTimestamp(ts) : 'Not yet edited';
+  });
 
   const outcomesList = $('#outcomes-list');
   outcomesList.innerHTML = '';
@@ -1501,11 +1523,15 @@ function renderMatrixTable() {
   const dnum = +$('#matrix-domain').value || 1;
   const subs = DATA.subCompetencies.filter(s => s.Domain === dnum).sort((a,b) => a.Code.localeCompare(b.Code, undefined, {numeric:true}));
   const courses = [...DATA.courses].sort((a,b) => (a.Semester||99) - (b.Semester||99) || a.CourseName.localeCompare(b.CourseName));
-  let h = '<thead class="text-white sticky top-0 z-10" style="background-color: var(--brand-primary-dark);"><tr>';
-  h += '<th class="text-left p-2 sticky left-0 z-20 min-w-[300px] border-r border-white/20" style="background-color: var(--brand-primary-dark);">Course</th>';
+  // Header row — black/white with maroon top+bottom border
+  h += '<thead class="sticky top-0 z-10"><tr style="background:#fff;border-top:2.5px solid var(--brand-primary);">';
+  h += '<th class="text-left p-2 sticky left-0 z-20 min-w-[300px]" style="background:#f5f5f5;color:#555;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;border-right:2px solid #d0d0d0;border-bottom:2.5px solid var(--brand-primary);">Course</th>';
   subs.forEach(s => {
-    h += `<th class="matrix-cell matrix-th p-1 border-r border-white/20 text-center font-mono text-[10px] cursor-pointer hover:bg-white/10" data-code="${escapeHtml(s.Code)}" data-text="${escapeHtml(s.Text)}">
-      ${escapeHtml(s.Code)}<div class="tip"><div class="font-mono font-bold mb-1" style="color:var(--brand-accent)">${escapeHtml(s.Code)}</div>${escapeHtml(s.Text)}</div></th>`;
+    const parentStyle = s.IsParent
+      ? 'background:#f0f0f0;border-left:2px solid #c8c8c8;color:#242424;font-weight:700;'
+      : 'background:#ffffff;color:#555;font-weight:400;';
+    h += `<th class="matrix-cell matrix-th p-1 text-center font-mono text-[10px] cursor-pointer" style="${parentStyle}border-right:1px solid #e8e8e8;border-bottom:2.5px solid var(--brand-primary);" data-code="${escapeHtml(s.Code)}" data-text="${escapeHtml(s.Text)}">
+      ${escapeHtml(s.Code)}<div class="tip"><div class="font-mono font-bold mb-1" style="color:var(--brand-primary)">${escapeHtml(s.Code)}</div>${escapeHtml(s.Text)}</div></th>`;
   });
   h += '</tr></thead><tbody>';
   let lastSem = 0;
@@ -1516,15 +1542,21 @@ function renderMatrixTable() {
       h += `<tr class="brand-bg-cream"><td colspan="${subs.length + 1}" class="px-2 py-1 text-[11px] font-semibold brand-text-primary uppercase tracking-wider">${label}</td></tr>`;
       lastSem = sem;
     }
-    const rowBg = idx%2 ? 'bg-stone-100' : 'bg-white';
+    const rowBg = idx%2 ? 'bg-stone-50' : 'bg-white';
     h += `<tr class="${rowBg} hover:bg-amber-50">`;
-    const credHtml = c.Credits != null ? ` <span class="brand-text-muted">(${c.Credits})</span>` : '';
-    h += `<td class="p-2 sticky left-0 ${rowBg} border-r brand-border-cream text-xs font-medium">${escapeHtml(c.CourseName)}${credHtml}</td>`;
+    const credHtml = c.Credits != null ? ` <span style="color:#999;font-weight:400">(${c.Credits})</span>` : '';
+    // Course name cell — greyed, sticky
+    h += `<td class="p-2 sticky left-0 text-xs font-medium" style="background:#f5f5f5;border-right:2px solid #d0d0d0;border-bottom:1px solid #e8e8e8;">${escapeHtml(c.CourseName)}${credHtml}</td>`;
+    // Pre-build mapped codes set for this course for efficiency
+    const mappedCodes = new Set(state.mappings.filter(m => m.Course === c.CourseName).map(m => m.SubCompetencyCode));
     subs.forEach(s => {
-      const mapped = state.mappings.some(m => m.Course === c.CourseName && m.SubCompetencyCode === s.Code);
+      const mapped = s.IsParent
+        ? DATA.subCompetencies.some(leaf => !leaf.IsParent && leaf.ParentCode === s.Code && mappedCodes.has(leaf.Code))
+        : mappedCodes.has(s.Code);
+      const cellStyle = s.IsParent ? 'border-left:2px solid #d8d8d8;background:#fafafa;' : '';
       h += mapped
-        ? `<td class="matrix-cell x-cell p-1 border-r brand-border-cream text-center" data-course="${escapeHtml(c.CourseName)}" data-code="${escapeHtml(s.Code)}" data-text="${escapeHtml(s.Text)}"><span class="x-mark inline-block text-[10px] font-bold px-1.5 rounded">X</span></td>`
-        : `<td class="matrix-cell p-1 border-r brand-border-cream text-center text-stone-300">·</td>`;
+        ? `<td class="matrix-cell x-cell p-1 text-center" style="${cellStyle}border-right:1px solid #efefef;border-bottom:1px solid #e8e8e8;" data-course="${escapeHtml(c.CourseName)}" data-code="${escapeHtml(s.Code)}" data-text="${escapeHtml(s.Text)}"><span class="x-mark inline-block text-[10px] font-bold px-1.5 rounded">X</span></td>`
+        : `<td class="matrix-cell p-1 text-center text-stone-300" style="${cellStyle}border-right:1px solid #efefef;border-bottom:1px solid #e8e8e8;">·</td>`;
     });
     h += '</tr>';
   });
@@ -1532,6 +1564,27 @@ function renderMatrixTable() {
   $('#matrix-table').innerHTML = h;
   $$('.matrix-th', $('#matrix-table')).forEach(th => th.addEventListener('click', () => showDetail(th.dataset.code, th.dataset.text)));
   $$('.x-cell', $('#matrix-table')).forEach(td => td.addEventListener('click', () => showDetail(td.dataset.code, td.dataset.text)));
+}
+
+async function fetchCourseLastUpdated(courseName) {
+  try {
+    const [metaRes, mapRes] = await Promise.all([
+      _supabase.from('outcome_meta').select('updated_at').eq('course', courseName).order('updated_at', {ascending:false}).limit(1),
+      _supabase.from('mappings').select('created_at').eq('course', courseName).order('created_at', {ascending:false}).limit(1)
+    ]);
+    const t1 = metaRes.data?.[0]?.updated_at;
+    const t2 = mapRes.data?.[0]?.created_at;
+    if (!t1 && !t2) return null;
+    if (!t1) return t2;
+    if (!t2) return t1;
+    return t1 > t2 ? t1 : t2;
+  } catch { return null; }
+}
+
+function formatTimestamp(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) + ', ' +
+         d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
 }
 
 function showDetail(code, text) {
